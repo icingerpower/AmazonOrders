@@ -1,6 +1,8 @@
 #include <QSettings>
 #include <QFile>
 
+#include "../common/workingdirectory/WorkingDirectoryManager.h"
+
 #include "ListOrderModel.h"
 
 ListOrderModel::ListOrderModel(const QString &countryCode, QObject *parent)
@@ -12,10 +14,10 @@ ListOrderModel::ListOrderModel(const QString &countryCode, QObject *parent)
 
 void ListOrderModel::_loadFromSettings()
 {
-    QSettings settings;
-    if (settings.contains(m_settingsKey))
+    auto settings = WorkingDirectoryManager::instance()->settings();
+    if (settings->contains(m_settingsKey))
     {
-        m_filePaths = settings.value(m_settingsKey).toStringList();
+        m_filePaths = settings->value(m_settingsKey).toStringList();
         for (int i=m_filePaths.size()-1; i>-1; --i)
         {
             if (!QFile::exists(m_filePaths[i]))
@@ -29,14 +31,14 @@ void ListOrderModel::_loadFromSettings()
 
 void ListOrderModel::_saveInSettings()
 {
-    QSettings settings;
+    auto settings = WorkingDirectoryManager::instance()->settings();
     if (m_filePaths.size() > 0)
     {
-        settings.setValue(m_settingsKey, m_filePaths);
+        settings->setValue(m_settingsKey, m_filePaths);
     }
-    else if (settings.contains(m_settingsKey))
+    else if (settings->contains(m_settingsKey))
     {
-        settings.remove(m_settingsKey);
+        settings->remove(m_settingsKey);
     }
 }
 
@@ -72,5 +74,5 @@ QVariant ListOrderModel::data(const QModelIndex &index, int role) const
 
 Qt::ItemFlags ListOrderModel::flags(const QModelIndex &index) const
 {
-    return Qt::ItemIsEnabled | Qt::ItemIsUserCheckable | Qt::ItemIsEditable;
+    return Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsEditable;
 }

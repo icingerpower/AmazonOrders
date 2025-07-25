@@ -113,9 +113,23 @@
            </widget>
           </item>
           <item>
+           <widget class="QPushButton" name="buttonClearFiltering">
+            <property name="text">
+             <string>Clear by filter</string>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QPushButton" name="buttonClearRecommended">
             <property name="text">
-             <string>Clear</string>
+             <string>Clear all</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="buttonClearNotRecommended">
+            <property name="text">
+             <string>Clear not recommended</string>
             </property>
            </widget>
           </item>
@@ -148,6 +162,12 @@
             <horstretch>0</horstretch>
             <verstretch>2</verstretch>
            </sizepolicy>
+          </property>
+          <property name="dragEnabled">
+           <bool>true</bool>
+          </property>
+          <property name="sortingEnabled">
+           <bool>true</bool>
           </property>
           <attribute name="horizontalHeaderStretchLastSection">
            <bool>true</bool>

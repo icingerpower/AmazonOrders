@@ -23,6 +23,8 @@ public slots:
     void removeOrderFile();
     void pasteInventoryRecommendation();
     void clearInventoryRecommendation();
+    void clearInventoryNotRecommended();
+    void clearFiltering();
     void save();
 
 private slots:

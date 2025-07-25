@@ -3,6 +3,7 @@
 #include <QApplication>
 #include <QSettings>
 
+#include "DialogFilterOut.h"
 #include "ListOrderModel.h"
 #include "TableInventoryRecommendation.h"
 
@@ -18,6 +19,8 @@ MainWindow::MainWindow(QWidget *parent)
     ListOrderModel *listOrderModel = new ListOrderModel{countryCode, ui->listViewOrderFiles};
     ui->listViewOrderFiles->setModel(listOrderModel);
     ui->tableViewRecommended->setModel(TableInventoryRecommendation::instance());
+    ui->tableViewRecommended->horizontalHeader()->resizeSection(TableInventoryRecommendation::IND_SKU, 200);
+    ui->tableViewRecommended->horizontalHeader()->resizeSection(TableInventoryRecommendation::IND_TITLE, 400);
     _connectSlots();
 }
 
@@ -43,6 +46,14 @@ void MainWindow::_connectSlots()
             &QPushButton::clicked,
             this,
             &MainWindow::clearInventoryRecommendation);
+    connect(ui->buttonClearNotRecommended,
+            &QPushButton::clicked,
+            this,
+            &MainWindow::clearInventoryNotRecommended);
+    connect(ui->buttonClearFiltering,
+            &QPushButton::clicked,
+            this,
+            &MainWindow::clearFiltering);
     connect(ui->buttonSave,
             &QPushButton::clicked,
             this,
@@ -111,6 +122,25 @@ void MainWindow::pasteInventoryRecommendation()
 void MainWindow::clearInventoryRecommendation()
 {
     TableInventoryRecommendation::instance()->clear();
+}
+
+void MainWindow::clearInventoryNotRecommended()
+{
+    TableInventoryRecommendation::instance()->clearNotRecommended();
+}
+
+void MainWindow::clearFiltering()
+{
+    DialogFilterOut dialog;
+    dialog.exec();
+    if (dialog.result() == QDialog::Accepted)
+    {
+        TableInventoryRecommendation::instance()->clear(
+                    dialog.getPatternSkus()
+                    , dialog.getPatternNames()
+                    , dialog.isWhiteList()
+                    );
+    }
 }
 
 void MainWindow::save()

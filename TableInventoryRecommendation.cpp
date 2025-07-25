@@ -2,16 +2,62 @@
 
 #include "TableInventoryRecommendation.h"
 
-const QStringList TableInventoryRecommendation::HEADER{"SKU", "Unit sold 30d", "Unit supply", "day supply", "Recommended Qty"};
+const QStringList TableInventoryRecommendation::HEADER{
+    "SKU"
+    , "Title"
+    , "Unit sold 30d"
+    , "Unit supply"
+    , "day supply"
+    , "Recommended Qty"
+    , "Price"
+    , "FNSKU"
+    , "ASIN"
+};
 const int TableInventoryRecommendation::IND_SKU{0};
-const int TableInventoryRecommendation::IND_UNIT_SOLD_30DAYS{1};
-const int TableInventoryRecommendation::IND_UNIT_SUPPLY{2};
-const int TableInventoryRecommendation::IND_DAY_SUPPLY{3};
-const int TableInventoryRecommendation::IND_RECOMMENDED_QTY{4};
+const int TableInventoryRecommendation::IND_TITLE{1};
+const int TableInventoryRecommendation::IND_UNIT_SOLD_30DAYS{2};
+const int TableInventoryRecommendation::IND_UNIT_SUPPLY{3};
+const int TableInventoryRecommendation::IND_DAY_SUPPLY{4};
+const int TableInventoryRecommendation::IND_RECOMMENDED_QTY{5};
+const int TableInventoryRecommendation::IND_PRICE{6};
+const int TableInventoryRecommendation::IND_FNSKU{7};
+const int TableInventoryRecommendation::IND_ASIN{8};
 
 TableInventoryRecommendation::TableInventoryRecommendation(QObject *parent)
     : QAbstractTableModel(parent)
 {
+}
+
+bool TableInventoryRecommendation::_lineMatch(
+        int indexLine, const QStringList &patternSkus, const QStringList &patternTitles, bool isWhiteList) const
+{
+    if (patternSkus.size() == 0 && patternTitles.size() == 0)
+    {
+        return true;
+    }
+    if (patternSkus.size() > 0)
+    {
+        const QString &sku = m_listOfVariantList[indexLine][IND_SKU].toString();
+        for (const auto &patternSku : patternSkus)
+        {
+            if (sku.contains(patternSku, Qt::CaseInsensitive))
+            {
+                return isWhiteList;
+            }
+        }
+    }
+    if (patternTitles.size() > 0)
+    {
+        const QString &title = m_listOfVariantList[indexLine][IND_TITLE].toString();
+        for (const auto &patternTitle : patternTitles)
+        {
+            if (title.contains(patternTitle, Qt::CaseInsensitive))
+            {
+                return isWhiteList;
+            }
+        }
+    }
+    return !isWhiteList;
 }
 
 TableInventoryRecommendation *TableInventoryRecommendation::instance()
@@ -46,6 +92,55 @@ int TableInventoryRecommendation::columnCount(const QModelIndex &) const
     return HEADER.size();
 }
 
+void TableInventoryRecommendation::sort(int column, Qt::SortOrder order)
+{
+    if (order == Qt::DescendingOrder)
+    {
+        std::sort(m_listOfVariantList.begin(), m_listOfVariantList.end(), [column](
+                  const QVariantList &variantList1, const QVariantList &variantList2){
+            static const auto typeString = QVariant{QString{}}.typeId();
+            static const auto typeInt = QVariant{0}.typeId();
+            static const auto typeDouble = QVariant{9.99}.typeId();
+            if (variantList1[column].typeId() == typeString)
+            {
+                return variantList1[column].toString() < variantList2[column].toString();
+            }
+            else if (variantList1[column].typeId() == typeInt)
+            {
+                return variantList1[column].toInt() < variantList2[column].toInt();
+            }
+            else if (variantList1[column].typeId() == typeDouble)
+            {
+                return variantList1[column].toDouble() < variantList2[column].toDouble();
+            }
+            return false;
+        });
+    }
+    else
+    {
+         std::sort(m_listOfVariantList.begin(), m_listOfVariantList.end(), [column](
+                  const QVariantList &variantList1, const QVariantList &variantList2){
+            static const auto typeString = QVariant{QString{}}.typeId();
+            static const auto typeInt = QVariant{0}.typeId();
+            static const auto typeDouble = QVariant{9.99}.typeId();
+            if (variantList1[column].typeId() == typeString)
+            {
+                return variantList1[column].toString() > variantList2[column].toString();
+            }
+            else if (variantList1[column].typeId() == typeInt)
+            {
+                return variantList1[column].toInt() > variantList2[column].toInt();
+            }
+            else if (variantList1[column].typeId() == typeDouble)
+            {
+                return variantList1[column].toDouble() > variantList2[column].toDouble();
+            }
+            return false;
+        });
+    }
+    emit dataChanged(index(0, 0), index(rowCount() - 1, columnCount() - 1));
+}
+
 QVariant TableInventoryRecommendation::data(
         const QModelIndex &index, int role) const
 {
@@ -56,144 +151,102 @@ QVariant TableInventoryRecommendation::data(
     return QVariant();
 }
 
+void TableInventoryRecommendation::clear(
+        const QStringList &patternSkus, const QStringList &patternTitles, bool isWhiteList)
+{
+    for (int i = m_listOfVariantList.size()-1; i>-1; --i)
+    {
+        if (!_lineMatch(i, patternSkus, patternTitles, isWhiteList))
+        {
+            beginRemoveRows(QModelIndex{}, i, i);
+            qDebug() << "Romeving :" << m_listOfVariantList[i][IND_SKU].toString() << m_listOfVariantList[i][IND_TITLE].toString();
+            m_listOfVariantList.removeAt(i);
+            endRemoveRows();
+        }
+    }
+}
+
 void TableInventoryRecommendation::pasteText(const QString &text)
 {
-    static const QRegularExpression reASIN("^B[0-9A-Z]{9,}$");
-    static const QRegularExpression reFNSKU("^X[0-9A-Z]+$");
-    static const QRegularExpression reUnits(R"(^(\\d+)\\s+units$)");
-    static const QRegularExpression reSKU("^[A-Za-z0-9\\-]+$");
     int rowBefore = rowCount();
-
-    // Split the whole paste by the trailing “Today” marker of each block
-    static const QRegularExpression reToday("\\bToday\\b");
-    const QStringList &blocks = text.split(reToday,
-                                          Qt::SkipEmptyParts);
-
-    for (const QString &blk : blocks)
+    QStringList lines;
+    int indexAction = text.indexOf("Action");
+    if (indexAction > -1)
     {
-        // Normalize / clean lines
-        QStringList lines;
-        lines.reserve(64);
-        for (QString l : blk.split('\n'))
+        lines = text.right(text.size() - indexAction - 6).split("\n");
+    }
+    else
+    {
+        lines = text.split("\n");
+    }
+    for (int i=lines.size()-1; i>-1; --i)
+    {
+        lines[i] = lines[i].trimmed();
+        if (lines[i].isEmpty())
         {
-            l = l.trimmed();
-            if (l.isEmpty())
-                continue;
-            if (l == "Action")
-                continue;
-            lines << l;
+            lines.removeAt(i);
         }
-        if (lines.isEmpty())
-            continue;
-
-        // Find key indices
-        int idxASIN  = -1;
-        int idxFNSKU = -1;
-        int idxSKU   = -1;
-        int idxDash  = -1; // the "--" separator
-
-        for (int i = 0; i < lines.size(); ++i)
+    }
+    int indexDashDash = lines.indexOf("--");
+    while (indexDashDash != -1)
+    {
+        int indexSku = indexDashDash - 4;
+        int indexTitle = indexDashDash - 3;
+        int indexASIN = indexDashDash - 2;
+        int indexFNSKU = indexDashDash - 1;
+        int indexSoldLast30days = indexDashDash + 2;
+        int indexSalePrice = indexDashDash + 3;
+        int indexInvLeftDays = indexDashDash + 4;
+        int indexInvLeft = indexDashDash + 5;
+        int indexInvRecommendation = indexDashDash + 6;
+        if (lines[indexInvRecommendation].contains("stock", Qt::CaseInsensitive))
         {
-            if (idxASIN  == -1 && reASIN.match(lines[i]).hasMatch())  idxASIN  = i;
-            if (idxFNSKU == -1 && reFNSKU.match(lines[i]).hasMatch()) idxFNSKU = i;
-            if (idxDash  == -1 && lines[i] == "--")                   idxDash  = i;
+            ++indexInvRecommendation;
         }
-
-        // Heuristic: first “token-looking” (letters/digits/-) line before ASIN/FNSKU
-        for (int i = 0; i < lines.size(); ++i)
+        if (indexSku >= 0 && indexInvLeft < lines.size())
         {
-            if ((idxASIN == -1  || i < idxASIN) &&
-                    (idxFNSKU == -1 || i < idxFNSKU))
+            const QString &sku = lines[indexSku];
+            const QString &title = lines[indexTitle];
+            const QString &ASIN = lines[indexASIN];
+            const QString &FNSKU = lines[indexFNSKU];
+            QString soldLast30days = lines[indexSoldLast30days].split(" ")[0].replace(",", "");
+            QString salePrice = lines[indexSalePrice];
+            while (!salePrice.isEmpty() && !salePrice.at(0).isDigit())
             {
-                if (reSKU.match(lines[i]).hasMatch() &&
-                        !reASIN.match(lines[i]).hasMatch() &&
-                        !reFNSKU.match(lines[i]).hasMatch())
-                {
-                    idxSKU = i;
-                    break;
-                }
+                salePrice.remove(0, 1);
             }
+            const QString &invLeftDays = lines[indexInvLeftDays].replace("--", "0").replace("+", "");
+            QString invLeft = lines[indexInvLeft].split(" ")[0];
+            QString invRecommendation = lines[indexInvRecommendation];
+            bool okSoldLast30days{false};
+            bool okInvRecommendation{false};
+            bool okSalePrice{false};
+            bool okInvLeftDays{false};
+            bool okInvLeft{false};
+            m_listOfVariantList << QVariantList{
+                                   sku
+                                   , title
+                                   , soldLast30days.toInt(&okSoldLast30days)
+                                   , invLeft.toInt(&okInvLeft)
+                                   , invLeftDays.toInt(&okInvLeftDays)
+                                   , invRecommendation.toInt(&okInvRecommendation)
+                                   , salePrice.toDouble(&okSalePrice)
+                                   , FNSKU
+                                   , ASIN
+                                    };
+            Q_ASSERT(okSoldLast30days);
+            Q_ASSERT(okInvRecommendation);
+            Q_ASSERT(okSalePrice);
+            Q_ASSERT(okInvLeftDays);
+            Q_ASSERT(okInvLeft);
         }
-
-        if (idxSKU == -1 || idxDash == -1)
-            continue; // can't reliably parse this block
-
-        int unitsSold30   = 0;
-        int daySupply     = 0;
-        int unitSupply    = 0;
-        int recommendedQty= 0;
-
-        // From the separator on, follow the numeric pattern
-        int i = idxDash + 1;
-
-        // 1) first "<n> units"  => units sold last 30 days
-        for (; i < lines.size(); ++i)
+        else
         {
-            auto m = reUnits.match(lines[i]);
-            if (m.hasMatch())
-            {
-                unitsSold30 = m.captured(1).toInt();
-                ++i;
-                break;
-            }
+            Q_ASSERT(false);
+            // TODO raise Exception
         }
-
-        // 2) next pure integer (skip €, m3, “Out of stock”, and "<n> units") => day supply
-        for (; i < lines.size(); ++i)
-        {
-            if (lines[i].contains("€") || lines[i].contains("m3", Qt::CaseInsensitive))
-                continue;
-            if (reUnits.match(lines[i]).hasMatch())
-                continue;
-            if (lines[i].compare("Out of stock", Qt::CaseInsensitive) == 0)
-                continue;
-
-            bool ok = false;
-            int v = lines[i].toInt(&ok);
-            if (ok)
-            {
-                daySupply = v;
-                ++i;
-                break;
-            }
-        }
-
-        // 3) next "<n> units"   => unit supply
-        for (; i < lines.size(); ++i)
-        {
-            auto m = reUnits.match(lines[i]);
-            if (m.hasMatch())
-            {
-                unitSupply = m.captured(1).toInt();
-                ++i;
-                break;
-            }
-        }
-
-        // Optional “Out of stock”
-        if (i < lines.size() && lines[i].contains("Out of stock", Qt::CaseInsensitive))
-            ++i;
-
-        // 4) next plain integer => recommended qty
-        for (; i < lines.size(); ++i)
-        {
-            bool ok = false;
-            int v = lines[i].toInt(&ok);
-            if (ok)
-            {
-                recommendedQty = v;
-                break;
-            }
-        }
-
-        QVariantList row;
-        row << lines[idxSKU]
-               << unitsSold30
-               << unitSupply
-               << daySupply
-               << recommendedQty;
-
-        m_listOfVariantList << row;
+        lines.remove(indexDashDash);
+        indexDashDash = lines.indexOf("--");
     }
     if (m_listOfVariantList.size() > rowBefore)
     {
@@ -207,4 +260,17 @@ void TableInventoryRecommendation::clear()
     beginRemoveRows(QModelIndex{}, 0, rowCount() - 1);
     m_listOfVariantList.clear();
     endRemoveRows();
+}
+
+void TableInventoryRecommendation::clearNotRecommended()
+{
+    for (int i=m_listOfVariantList.size()-1; i>-1; --i)
+    {
+        if (m_listOfVariantList[i][IND_RECOMMENDED_QTY].toInt() == 0)
+        {
+            beginRemoveRows(QModelIndex{}, i, i);
+            m_listOfVariantList.removeAt(i);
+            endRemoveRows();
+        }
+    }
 }

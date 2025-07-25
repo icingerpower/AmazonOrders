@@ -34,10 +34,21 @@ set(PROJECT_SOURCES
         MainWindow.cpp
         MainWindow.h
         MainWindow.ui
+        DialogFilterOut.cpp
+        DialogFilterOut.h
+        DialogFilterOut.ui
         ListOrderModel.h
         ListOrderModel.cpp
+        ListPatternTemplates.h
+        ListPatternTemplates.cpp
+        ListPatternSkus.h
+        ListPatternSkus.cpp
+        ListPatternNames.h
+        ListPatternNames.cpp
         TableInventoryRecommendation.h
         TableInventoryRecommendation.cpp
+        "../common/types/types.h"
+        "../common/types/types.cpp"
         ${WORKING_DIR_FILES}
 )
 
