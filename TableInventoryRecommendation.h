@@ -2,6 +2,8 @@
 #define TABLEINVENTORYRECOMMENDATION_H
 
 #include <QAbstractTableModel>
+#include <QImage>
+
 
 class TableInventoryRecommendation : public QAbstractTableModel
 {
@@ -19,6 +21,7 @@ public:
     static const int IND_ASIN;
     static TableInventoryRecommendation *instance();
 
+    QMap<QString, int> get_skusReco_quantity() const;
     // Header:
     QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override;
 
@@ -31,9 +34,11 @@ public:
     void clear(const QStringList &patternSkus, const QStringList &patternTitles, bool isWhiteList);
 
 public slots:
-    void pasteText(const QString &text);
+    int pasteText(const QString &text);
     void clear();
     void clearNotRecommended();
+    void save();
+    void load();
 
 private:
     explicit TableInventoryRecommendation(QObject *parent = nullptr);
@@ -43,6 +48,9 @@ private:
                     const QStringList &patternSkus,
                     const QStringList &patternTitles,
                     bool isWhiteList) const;
+    QString m_settingsKey;
+
+
 };
 
 #endif // TABLEINVENTORYRECOMMENDATION_H

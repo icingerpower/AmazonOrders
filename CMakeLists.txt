@@ -47,6 +47,8 @@ set(PROJECT_SOURCES
         ListPatternNames.cpp
         TableInventoryRecommendation.h
         TableInventoryRecommendation.cpp
+        OrderCreator.h
+        OrderCreator.cpp
         "../common/types/types.h"
         "../common/types/types.cpp"
         ${WORKING_DIR_FILES}
@@ -56,6 +58,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(AmazonOrders
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
+        DialogMissingSkus.h DialogMissingSkus.cpp DialogMissingSkus.ui
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET AmazonOrders APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR

@@ -8,6 +8,7 @@
 
 int main(int argc, char *argv[])
 {
+    qRegisterMetaType<QList<QVariantList>>();
     qRegisterMetaType<QList<QStringList>>();
     qRegisterMetaType<QSet<QString>>();
 

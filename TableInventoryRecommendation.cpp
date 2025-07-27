@@ -1,4 +1,7 @@
 #include <QRegularExpression>
+#include <QSharedPointer>
+
+#include "../common/workingdirectory/WorkingDirectoryManager.h"
 
 #include "TableInventoryRecommendation.h"
 
@@ -26,6 +29,7 @@ const int TableInventoryRecommendation::IND_ASIN{8};
 TableInventoryRecommendation::TableInventoryRecommendation(QObject *parent)
     : QAbstractTableModel(parent)
 {
+    m_settingsKey = "TableInventoryRecommendation";
 }
 
 bool TableInventoryRecommendation::_lineMatch(
@@ -64,6 +68,21 @@ TableInventoryRecommendation *TableInventoryRecommendation::instance()
 {
     static TableInventoryRecommendation instance;
     return &instance;
+}
+
+QMap<QString, int> TableInventoryRecommendation::get_skusReco_quantity() const
+{
+    QMap<QString, int> skusReco_quantity;
+    for (const auto &variantList : m_listOfVariantList)
+    {
+        int quantity = variantList[IND_RECOMMENDED_QTY].toInt();
+        if (quantity > 0)
+        {
+            const auto &sku = variantList[IND_SKU].toString();
+            skusReco_quantity[sku] = quantity;
+        }
+    }
+    return skusReco_quantity;
 }
 
 QVariant TableInventoryRecommendation::headerData(int section, Qt::Orientation orientation, int role) const
@@ -166,8 +185,9 @@ void TableInventoryRecommendation::clear(
     }
 }
 
-void TableInventoryRecommendation::pasteText(const QString &text)
+int TableInventoryRecommendation::pasteText(const QString &text)
 {
+    int nAddedLines = 0;
     int rowBefore = rowCount();
     QStringList lines;
     int indexAction = text.indexOf("Action");
@@ -234,6 +254,7 @@ void TableInventoryRecommendation::pasteText(const QString &text)
                                    , FNSKU
                                    , ASIN
                                     };
+            ++nAddedLines;
             Q_ASSERT(okSoldLast30days);
             Q_ASSERT(okInvRecommendation);
             Q_ASSERT(okSalePrice);
@@ -253,13 +274,17 @@ void TableInventoryRecommendation::pasteText(const QString &text)
         beginInsertRows(QModelIndex{}, rowBefore, m_listOfVariantList.size()-1);
         endInsertRows();
     }
+    return nAddedLines;
 }
 
 void TableInventoryRecommendation::clear()
 {
-    beginRemoveRows(QModelIndex{}, 0, rowCount() - 1);
-    m_listOfVariantList.clear();
-    endRemoveRows();
+    if (m_listOfVariantList.size() > 0)
+    {
+        beginRemoveRows(QModelIndex{}, 0, rowCount() - 1);
+        m_listOfVariantList.clear();
+        endRemoveRows();
+    }
 }
 
 void TableInventoryRecommendation::clearNotRecommended()
@@ -274,3 +299,30 @@ void TableInventoryRecommendation::clearNotRecommended()
         }
     }
 }
+
+void TableInventoryRecommendation::save()
+{
+    auto settings = WorkingDirectoryManager::instance()->settings();
+    if (m_listOfVariantList.size() > 0)
+    { // We only save if values, to avoid overwritting existing saved values by accident
+        settings->setValue(m_settingsKey, QVariant::fromValue(m_listOfVariantList));
+    }
+}
+
+void TableInventoryRecommendation::load()
+{
+    clear();
+    auto settings = WorkingDirectoryManager::instance()->settings();
+    if (settings->contains(m_settingsKey))
+    {
+        auto listOfVariantList
+            = settings->value(m_settingsKey).value<QList<QVariantList>>();
+        if (listOfVariantList.size() > 0)
+        {
+            beginInsertRows(QModelIndex{}, 0, listOfVariantList.size() - 1);
+            m_listOfVariantList = std::move(listOfVariantList);
+            endInsertRows();
+        }
+    }
+}
+

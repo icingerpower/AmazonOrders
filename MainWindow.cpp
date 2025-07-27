@@ -1,11 +1,16 @@
 #include <QFileDialog>
+#include <QMessageBox>
 #include <QClipboard>
 #include <QApplication>
 #include <QSettings>
 
+#include "../common/workingdirectory/WorkingDirectoryManager.h"
+
 #include "DialogFilterOut.h"
+#include "DialogMissingSkus.h"
 #include "ListOrderModel.h"
 #include "TableInventoryRecommendation.h"
+#include "OrderCreator.h"
 
 #include "MainWindow.h"
 #include "./ui_MainWindow.h"
@@ -15,12 +20,16 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+    m_settingKeyImagePath = "imagePath";
     const auto &countryCode = ui->comboCountry->currentText();
     ListOrderModel *listOrderModel = new ListOrderModel{countryCode, ui->listViewOrderFiles};
     ui->listViewOrderFiles->setModel(listOrderModel);
     ui->tableViewRecommended->setModel(TableInventoryRecommendation::instance());
     ui->tableViewRecommended->horizontalHeader()->resizeSection(TableInventoryRecommendation::IND_SKU, 200);
     ui->tableViewRecommended->horizontalHeader()->resizeSection(TableInventoryRecommendation::IND_TITLE, 400);
+    auto settings = WorkingDirectoryManager::instance()->settings();
+    ui->lineEditPathImage->setText(
+        settings->value(m_settingKeyImagePath, QString{}).toString());
     _connectSlots();
 }
 
@@ -30,6 +39,10 @@ void MainWindow::_connectSlots()
             &QComboBox::currentTextChanged,
             this,
             &MainWindow::_onCountryChanged);
+    connect(ui->buttonBrowseImagePath,
+            &QPushButton::clicked,
+            this,
+            &MainWindow::browseImagePath);
     connect(ui->buttonAddOrder,
             &QPushButton::clicked,
             this,
@@ -54,10 +67,18 @@ void MainWindow::_connectSlots()
             &QPushButton::clicked,
             this,
             &MainWindow::clearFiltering);
-    connect(ui->buttonSave,
+    connect(ui->buttonCreateOrder,
             &QPushButton::clicked,
             this,
-            &MainWindow::save);
+            &MainWindow::createOrderFile);
+    connect(ui->buttonSaveRecommentation,
+            &QPushButton::clicked,
+            TableInventoryRecommendation::instance(),
+            &TableInventoryRecommendation::save);
+    connect(ui->buttonLoadRecommentation,
+            &QPushButton::clicked,
+            TableInventoryRecommendation::instance(),
+            &TableInventoryRecommendation::load);
 }
 
 MainWindow::~MainWindow()
@@ -68,6 +89,24 @@ MainWindow::~MainWindow()
 ListOrderModel *MainWindow::getListOrderModel() const
 {
     return static_cast<ListOrderModel *>(ui->listViewOrderFiles->model());
+}
+
+void MainWindow::browseImagePath()
+{
+    auto settings = WorkingDirectoryManager::instance()->settings();
+    QString lastDir{settings->value(m_settingKeyImagePath, QDir{}.path()).toString()};
+    const QString &dirPath = QFileDialog::getExistingDirectory(
+                this
+                , tr("Order file")
+                , lastDir
+                //, nullptr
+                //, QFileDialog::DontUseNativeDialog);
+                );
+    if (!dirPath.isEmpty())
+    {
+        settings->setValue(m_settingKeyImagePath, dirPath);
+        ui->lineEditPathImage->setText(dirPath);
+    }
 }
 
 void MainWindow::_onCountryChanged(const QString &countryCode)
@@ -115,7 +154,21 @@ void MainWindow::pasteInventoryRecommendation()
     const auto &textTrimmed = text.trimmed();
     if (!textTrimmed.isEmpty())
     {
-        TableInventoryRecommendation::instance()->pasteText(textTrimmed);
+        int nAdded = TableInventoryRecommendation::instance()->pasteText(textTrimmed);
+        if (nAdded > 0)
+        {
+            QMessageBox::information(
+                this,
+                tr("Rows added"),
+                QString::number(nAdded) + tr(" rows we added"));
+        }
+        else
+        {
+            QMessageBox::information(
+                this,
+                tr("No rows added"),
+                tr("No rows were added. Please check your copy paste"));
+        }
     }
 }
 
@@ -143,8 +196,55 @@ void MainWindow::clearFiltering()
     }
 }
 
-void MainWindow::save()
+void MainWindow::createOrderFile()
 {
+    const auto &filePathsFrom = getListOrderModel()->getFilePaths();
+    if (filePathsFrom.size() == 0)
+    {
+        QMessageBox::warning(
+            this,
+            tr("No file paths"),
+            tr("You need to add previous order files"));
+    }
+    else
+    {
+        QSettings settings;
+        const QString key{"MainWindow__createOrderFile"};
+        QDir lastDir{settings.value(key, QDir{}.path()).toString()};
+        QString filePath = QFileDialog::getSaveFileName(
+            this
+            , tr("Order file")
+            , lastDir.path()
+            , QString{"Xlsx (*.xlsx *.XLSX)"}
+            //, nullptr
+            //, QFileDialog::DontUseNativeDialog);
+            );
+        if (!filePath.isEmpty())
+        {
+            if (!filePath.endsWith(".xlsx", Qt::CaseInsensitive))
+            {
+                filePath += ".xlsx";
+            }
+            settings.setValue(key, QFileInfo{filePath}.dir().path());
 
+            OrderCreator orderCreator{
+                filePathsFrom
+                , TableInventoryRecommendation::instance()->get_skusReco_quantity()
+                , ui->lineEditPathImage->text()
+            };
+            orderCreator.prepareOrder();
+            const auto &imageMissingSuks = orderCreator.getSkuNoImages();
+            if (imageMissingSuks.size() > 0)
+            {
+                DialogMissingSkus dialog{imageMissingSuks};
+                dialog.exec();
+            }
+            else
+            {
+                orderCreator.createOrder(filePath);
+            }
+        }
+    }
 }
+
 

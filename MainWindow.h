@@ -19,13 +19,14 @@ public:
     ListOrderModel *getListOrderModel() const;
 
 public slots:
+    void browseImagePath();
     void addOrderFile();
     void removeOrderFile();
     void pasteInventoryRecommendation();
     void clearInventoryRecommendation();
     void clearInventoryNotRecommended();
     void clearFiltering();
-    void save();
+    void createOrderFile();
 
 private slots:
     void _onCountryChanged(const QString &countryCode);
@@ -33,5 +34,6 @@ private slots:
 private:
     Ui::MainWindow *ui;
     void _connectSlots();
+    QString m_settingKeyImagePath;
 };
 #endif // MAINWINDOW_H

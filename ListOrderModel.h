@@ -9,6 +9,9 @@ class ListOrderModel : public QAbstractListModel
     Q_OBJECT
 public:
     ListOrderModel(const QString &countryCode, QObject *parent = nullptr);
+
+    const QStringList &getFilePaths() const;
+
     void addFile(const QString &filePath);
     void removeFile(const QModelIndex &index);
 

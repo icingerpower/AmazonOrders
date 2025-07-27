@@ -12,6 +12,11 @@ ListOrderModel::ListOrderModel(const QString &countryCode, QObject *parent)
     _loadFromSettings();
 }
 
+const QStringList &ListOrderModel::getFilePaths() const
+{
+    return m_filePaths;
+}
+
 void ListOrderModel::_loadFromSettings()
 {
     auto settings = WorkingDirectoryManager::instance()->settings();
