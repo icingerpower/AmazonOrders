@@ -67,18 +67,26 @@ void MainWindow::_connectSlots()
             &QPushButton::clicked,
             this,
             &MainWindow::clearFiltering);
+    connect(ui->buttonFilter,
+            &QPushButton::clicked,
+            this,
+            &MainWindow::filter);
+    connect(ui->buttonFilterReset,
+            &QPushButton::clicked,
+            this,
+            &MainWindow::filterReset);
     connect(ui->buttonCreateOrder,
             &QPushButton::clicked,
             this,
             &MainWindow::createOrderFile);
     connect(ui->buttonSaveRecommentation,
             &QPushButton::clicked,
-            TableInventoryRecommendation::instance(),
-            &TableInventoryRecommendation::save);
+            this,
+            &MainWindow::saveRecommendation);
     connect(ui->buttonLoadRecommentation,
             &QPushButton::clicked,
-            TableInventoryRecommendation::instance(),
-            &TableInventoryRecommendation::load);
+            this,
+            &MainWindow::loadRecommendation);
 }
 
 MainWindow::~MainWindow()
@@ -230,6 +238,7 @@ void MainWindow::createOrderFile()
             OrderCreator orderCreator{
                 filePathsFrom
                 , TableInventoryRecommendation::instance()->get_skusReco_quantity()
+                , TableInventoryRecommendation::instance()->get_skusNoInv_customReco()
                 , ui->lineEditPathImage->text()
             };
             orderCreator.prepareOrder();
@@ -245,6 +254,49 @@ void MainWindow::createOrderFile()
             }
         }
     }
+}
+
+void MainWindow::filter()
+{
+    const QString &textFilter = ui->lineEditFilter->text();
+    int rowCount = TableInventoryRecommendation::instance()->rowCount();
+    for (int i=0; i<rowCount; ++i)
+    {
+        const QString &sku = TableInventoryRecommendation::instance()->getSku(i);
+        if (sku.contains(textFilter, Qt::CaseInsensitive))
+        {
+            ui->tableViewRecommended->setRowHidden(i, false);
+            continue;
+        }
+        const QString &title = TableInventoryRecommendation::instance()->getTitle(i);
+        if (title.contains(textFilter, Qt::CaseInsensitive))
+        {
+            ui->tableViewRecommended->setRowHidden(i, false);
+            continue;
+        }
+        ui->tableViewRecommended->setRowHidden(i, true);
+    }
+}
+
+void MainWindow::filterReset()
+{
+    int rowCount = TableInventoryRecommendation::instance()->rowCount();
+    for (int i=0; i<rowCount; ++i)
+    {
+        ui->tableViewRecommended->setRowHidden(i, false);
+    }
+}
+
+void MainWindow::saveRecommendation()
+{
+    TableInventoryRecommendation::instance()->save(
+        ui->comboCountry->currentText());
+}
+
+void MainWindow::loadRecommendation()
+{
+    TableInventoryRecommendation::instance()->load(
+        ui->comboCountry->currentText());
 }
 
 

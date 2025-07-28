@@ -70,6 +70,37 @@ TableInventoryRecommendation *TableInventoryRecommendation::instance()
     return &instance;
 }
 
+QString TableInventoryRecommendation::getSku(int row) const
+{
+    return m_listOfVariantList[row][IND_SKU].toString();
+}
+
+QString TableInventoryRecommendation::getTitle(int row) const
+{
+    return m_listOfVariantList[row][IND_TITLE].toString();
+}
+
+QMap<QString, int> TableInventoryRecommendation::get_skusNoInv_customReco() const
+{
+    QMap<QString, int> skusNoInv_quantitySold;
+    for (const auto &variantList : m_listOfVariantList)
+    {
+        int quantityReco = variantList[IND_RECOMMENDED_QTY].toInt();
+        if (quantityReco == 0)
+        {
+            int quantityLeft = variantList[IND_UNIT_SUPPLY].toInt();
+            int quantityLeftDays = variantList[IND_DAY_SUPPLY].toInt();
+            int quantitySold30days = variantList[IND_UNIT_SOLD_30DAYS].toInt();
+            if (quantityLeft == 0 || quantityLeftDays < 45)
+            {
+                const auto &sku = variantList[IND_SKU].toString();
+                skusNoInv_quantitySold[sku] = qMax(quantitySold30days, 1);
+            }
+        }
+    }
+    return skusNoInv_quantitySold;
+}
+
 QMap<QString, int> TableInventoryRecommendation::get_skusReco_quantity() const
 {
     QMap<QString, int> skusReco_quantity;
@@ -300,23 +331,24 @@ void TableInventoryRecommendation::clearNotRecommended()
     }
 }
 
-void TableInventoryRecommendation::save()
+void TableInventoryRecommendation::save(const QString &countryCode)
 {
     auto settings = WorkingDirectoryManager::instance()->settings();
     if (m_listOfVariantList.size() > 0)
     { // We only save if values, to avoid overwritting existing saved values by accident
-        settings->setValue(m_settingsKey, QVariant::fromValue(m_listOfVariantList));
+        settings->setValue(m_settingsKey + countryCode, QVariant::fromValue(m_listOfVariantList));
     }
 }
 
-void TableInventoryRecommendation::load()
+void TableInventoryRecommendation::load(const QString &countryCode)
 {
     clear();
     auto settings = WorkingDirectoryManager::instance()->settings();
-    if (settings->contains(m_settingsKey))
+    const auto &settingsKeyCountryCode = m_settingsKey + countryCode;
+    if (settings->contains(settingsKeyCountryCode))
     {
         auto listOfVariantList
-            = settings->value(m_settingsKey).value<QList<QVariantList>>();
+            = settings->value(settingsKeyCountryCode).value<QList<QVariantList>>();
         if (listOfVariantList.size() > 0)
         {
             beginInsertRows(QModelIndex{}, 0, listOfVariantList.size() - 1);

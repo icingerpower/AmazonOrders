@@ -21,6 +21,9 @@ public:
     static const int IND_ASIN;
     static TableInventoryRecommendation *instance();
 
+    QString getSku(int row) const;
+    QString getTitle(int row) const;
+    QMap<QString, int> get_skusNoInv_customReco() const;
     QMap<QString, int> get_skusReco_quantity() const;
     // Header:
     QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override;
@@ -33,12 +36,13 @@ public:
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
     void clear(const QStringList &patternSkus, const QStringList &patternTitles, bool isWhiteList);
 
+    void save(const QString &countryCode);
+    void load(const QString &countryCode);
+
 public slots:
     int pasteText(const QString &text);
     void clear();
     void clearNotRecommended();
-    void save();
-    void load();
 
 private:
     explicit TableInventoryRecommendation(QObject *parent = nullptr);

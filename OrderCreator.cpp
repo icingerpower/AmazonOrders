@@ -8,11 +8,27 @@ const QString OrderCreator::COL_IMAGE{"image"};
 
 OrderCreator::OrderCreator(const QStringList &xlsxFilePathsFrom,
                            const QMap<QString, int> &skusReco_quantity,
+                           const QMap<QString, int> &skusNoInv_customReco,
                            const QString &imagePath)
 {
     m_dirImages = QDir{imagePath};
     m_xlsxFilePathsFrom = xlsxFilePathsFrom;
-    m_skusReco_quantity = skusReco_quantity;
+    //m_skusReco_quantity = skusReco_quantity;
+    //m_skusNoInv_customReco = skusNoInv_customReco;
+    m_mergeSku_quantity = skusReco_quantity;
+    for (auto it = skusNoInv_customReco.begin();
+         it != skusNoInv_customReco.end(); ++it)
+    {
+        if (!m_mergeSku_quantity.contains(it.key()))
+        {
+            m_mergeSku_quantity[it.key()] = it.value();
+        }
+        else
+        {
+            m_mergeSku_quantity[it.key()] = qMax(m_mergeSku_quantity[it.key()], it.value());
+        }
+    }
+
     m_rowHeight = 10.;
 }
 
@@ -54,13 +70,13 @@ void OrderCreator::prepareOrder()
     auto firstDocument = documentsFrom[0];
     m_colNames = _getDocColNames(*firstDocument);
     m_colInfos = _getDocColInfos(*firstDocument);
-    const auto skusInYellow = _getSkusInYellow(
+    const auto &skusInYellow = _getSkusInYellow(
         *firstDocument, m_colNames);
     for (const auto &yellowSku : skusInYellow)
     {
-        if (!m_skusReco_quantity.contains(yellowSku))
+        if (!m_mergeSku_quantity.contains(yellowSku))
         {
-            m_skusReco_quantity[yellowSku] = 0;
+            m_mergeSku_quantity[yellowSku] = 0;
         }
     }
     m_rowHeight = firstDocument->rowHeight(2);
@@ -124,8 +140,8 @@ QList<QStringList> OrderCreator::getSkuNoImages()
         //skusWithImagesSorted << sku;
         m_sku_imgFilePath[sku] = imageFilePath.absoluteFilePath();
     }
-    for (auto it = m_skusReco_quantity.begin();
-         it != m_skusReco_quantity.end(); ++it)
+    for (auto it = m_mergeSku_quantity.begin();
+         it != m_mergeSku_quantity.end(); ++it)
     {
         const auto &sku = it.key();
         const auto &parentSku = _getCjSkuParent(sku);
@@ -175,8 +191,8 @@ void OrderCreator::createOrder(
         docTo.setColumnWidth(i + 1, m_colInfos[i].width);
     }
     int imageHeight = int(m_rowHeight*1.1 + 0.5);
-    for (auto it = m_skusReco_quantity.begin();
-         it != m_skusReco_quantity.end(); ++it)
+    for (auto it = m_mergeSku_quantity.begin();
+         it != m_mergeSku_quantity.end(); ++it)
     {
         RowValues rowValues;
         const auto &sku = it.key();

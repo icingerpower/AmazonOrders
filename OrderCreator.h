@@ -11,6 +11,7 @@ class OrderCreator
 public:
     OrderCreator(const QStringList &xlsxFilePathsFrom,
                  const QMap<QString, int> &skusReco_quantity,
+                 const QMap<QString, int> &skusNoInv_customReco,
                  const QString &imagePath);
     static const QString COL_QTY;
     static const QString COL_SKU;
@@ -51,7 +52,9 @@ private:
 
 private:
     QStringList m_xlsxFilePathsFrom;
-    QMap<QString, int> m_skusReco_quantity;
+    //QMap<QString, int> m_skusReco_quantity;
+    //QMap<QString, int> m_skusNoInv_customReco;
+    QMap<QString, int> m_mergeSku_quantity;
     QDir m_dirImages;
     QHash<QString, RowValues> m_skuParent_rowValues;
     QHash<QString, RowValues> m_sku_rowValues;

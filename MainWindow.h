@@ -27,6 +27,10 @@ public slots:
     void clearInventoryNotRecommended();
     void clearFiltering();
     void createOrderFile();
+    void filter();
+    void filterReset();
+    void saveRecommendation();
+    void loadRecommendation();
 
 private slots:
     void _onCountryChanged(const QString &countryCode);
