@@ -317,6 +317,11 @@ QString OrderCreator::_getCjSkuParent(
         if (sku.contains("-"))
         {
             QStringList elements{sku.trimmed().split("-")};
+            static QSet<QString> endDouble{"NARROW", "WIDE"};
+            if (endDouble.contains(elements.last()))
+            {
+                elements.takeLast();
+            }
             elements.takeLast();
             return elements.join("-");
         }

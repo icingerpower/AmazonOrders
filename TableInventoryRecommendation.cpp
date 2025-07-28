@@ -238,7 +238,13 @@ int TableInventoryRecommendation::pasteText(const QString &text)
             lines.removeAt(i);
         }
     }
-    int indexDashDash = lines.indexOf("--");
+    QString supplierMark{"--"};
+    int indexDashDash = lines.indexOf(supplierMark);
+    if (indexDashDash == -1 || !lines[indexDashDash-1].startsWith("X"))
+    {
+        supplierMark = "unassigned";
+        indexDashDash = lines.indexOf(supplierMark);
+    }
     while (indexDashDash != -1)
     {
         int indexSku = indexDashDash - 4;
@@ -246,10 +252,11 @@ int TableInventoryRecommendation::pasteText(const QString &text)
         int indexASIN = indexDashDash - 2;
         int indexFNSKU = indexDashDash - 1;
         int indexSoldLast30days = indexDashDash + 2;
-        int indexSalePrice = indexDashDash + 3;
-        int indexInvLeftDays = indexDashDash + 4;
-        int indexInvLeft = indexDashDash + 5;
-        int indexInvRecommendation = indexDashDash + 6;
+        int addExtraViewForecast = lines.contains("View forecast", Qt::CaseInsensitive) ? 1:0;
+        int indexSalePrice = indexDashDash + 3 + addExtraViewForecast;
+        int indexInvLeftDays = indexDashDash + 4 + addExtraViewForecast;
+        int indexInvLeft = indexDashDash + 5 + addExtraViewForecast;
+        int indexInvRecommendation = indexDashDash + 6 + addExtraViewForecast;
         if (lines[indexInvRecommendation].contains("stock", Qt::CaseInsensitive))
         {
             ++indexInvRecommendation;
@@ -269,6 +276,10 @@ int TableInventoryRecommendation::pasteText(const QString &text)
             const QString &invLeftDays = lines[indexInvLeftDays].replace("--", "0").replace("+", "");
             QString invLeft = lines[indexInvLeft].split(" ")[0];
             QString invRecommendation = lines[indexInvRecommendation];
+            if (invRecommendation.startsWith("No", Qt::CaseInsensitive))
+            {
+                invRecommendation = "0";
+            }
             bool okSoldLast30days{false};
             bool okInvRecommendation{false};
             bool okSalePrice{false};
@@ -298,7 +309,7 @@ int TableInventoryRecommendation::pasteText(const QString &text)
             // TODO raise Exception
         }
         lines.remove(indexDashDash);
-        indexDashDash = lines.indexOf("--");
+        indexDashDash = lines.indexOf(supplierMark);
     }
     if (m_listOfVariantList.size() > rowBefore)
     {
