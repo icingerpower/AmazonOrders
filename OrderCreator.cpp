@@ -19,6 +19,10 @@ OrderCreator::OrderCreator(const QStringList &xlsxFilePathsFrom,
     for (auto it = skusNoInv_customReco.begin();
          it != skusNoInv_customReco.end(); ++it)
     {
+        if (it.key().trimmed().isEmpty())
+        {
+            Q_ASSERT(!it.key().trimmed().isEmpty());
+        }
         if (!m_mergeSku_quantity.contains(it.key()))
         {
             m_mergeSku_quantity[it.key()] = it.value();
@@ -76,6 +80,7 @@ void OrderCreator::prepareOrder()
     {
         if (!m_mergeSku_quantity.contains(yellowSku))
         {
+            Q_ASSERT(!yellowSku.isEmpty());
             m_mergeSku_quantity[yellowSku] = 0;
         }
     }
@@ -145,6 +150,10 @@ QList<QStringList> OrderCreator::getSkuNoImages()
     {
         const auto &sku = it.key();
         const auto &parentSku = _getCjSkuParent(sku);
+        if (sku.trimmed().isEmpty() || parentSku.trimmed().isEmpty())
+        {
+            int TEMP=10;++TEMP;
+        }
         if (!m_sku_imgFilePath.contains(sku)
              && !m_sku_imgFilePath.contains(parentSku))
         {
@@ -264,6 +273,7 @@ int OrderCreator::_getColPos(
     // If there's no data at all, bail out
     if (dim.firstRow() < 0)
     {
+        Q_ASSERT(false);
         return -1;
     }
 
@@ -347,6 +357,7 @@ QStringList OrderCreator::_getDocColNames(
                 QString colName = cell->value().toString().trimmed().toLower();
                 if (colName.isEmpty())
                 {
+                    Q_ASSERT(col != 0); //It means the very first column is empty. Raising exception would be better
                     return colNames;
                 }
                 colNames << colName;
@@ -426,7 +437,10 @@ QStringList OrderCreator::_getSkusInYellow(
         if (_isYellow(rowValues) && rowValues->contains(COL_SKU))
         {
             const QString &sku = rowValues->value(COL_SKU).value.toString();
-            skus << sku;
+            if (!sku.isEmpty())
+            {
+                skus << sku;
+            }
         }
     }
     return skus;
