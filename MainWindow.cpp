@@ -51,6 +51,10 @@ void MainWindow::_connectSlots()
             &QPushButton::clicked,
             this,
             &MainWindow::removeOrderFile);
+    connect(ui->buttonImportReport,
+            &QPushButton::clicked,
+            this,
+            &MainWindow::importInventoryRecommendation);
     connect(ui->buttonPasteRecommended,
             &QPushButton::clicked,
             this,
@@ -153,6 +157,27 @@ void MainWindow::removeOrderFile()
     {
         getListOrderModel()->removeFile(selIndexes.first());
     }
+}
+
+void MainWindow::importInventoryRecommendation()
+{
+        QSettings settings;
+        const QString key{"MainWindow__importInventoryRecommendation"};
+        QDir lastDir{settings.value(key, QDir{}.path()).toString()};
+        const QString &filePath = QFileDialog::getOpenFileName(
+            this
+            , tr("Inventory file")
+            , lastDir.path()
+            , QString{"CSV (*.csv *.CSV)"}
+            //, nullptr
+            //, QFileDialog::DontUseNativeDialog);
+            );
+        if (!filePath.isEmpty())
+        {
+            settings.setValue(key, QFileInfo{filePath}.dir().path());
+            TableInventoryRecommendation::instance()->importCsvRecommendation(
+                filePath);
+        }
 }
 
 void MainWindow::pasteInventoryRecommendation()

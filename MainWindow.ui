@@ -145,6 +145,13 @@
            </widget>
           </item>
           <item>
+           <widget class="QPushButton" name="buttonImportReport">
+            <property name="text">
+             <string>Import report</string>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QPushButton" name="buttonClearFiltering">
             <property name="text">
              <string>Clear by filter</string>

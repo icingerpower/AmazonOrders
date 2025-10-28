@@ -2,6 +2,7 @@
 #include <QSharedPointer>
 
 #include "../common/workingdirectory/WorkingDirectoryManager.h"
+#include "../common/utils/CsvReader.h"
 
 #include "TableInventoryRecommendation.h"
 
@@ -347,7 +348,8 @@ void TableInventoryRecommendation::save(const QString &countryCode)
     auto settings = WorkingDirectoryManager::instance()->settings();
     if (m_listOfVariantList.size() > 0)
     { // We only save if values, to avoid overwritting existing saved values by accident
-        settings->setValue(m_settingsKey + countryCode, QVariant::fromValue(m_listOfVariantList));
+        settings->setValue(m_settingsKey + countryCode
+                           , QVariant::fromValue(m_listOfVariantList));
     }
 }
 
@@ -366,6 +368,103 @@ void TableInventoryRecommendation::load(const QString &countryCode)
             m_listOfVariantList = std::move(listOfVariantList);
             endInsertRows();
         }
+    }
+}
+
+Qt::ItemFlags TableInventoryRecommendation::flags(
+    const QModelIndex &) const
+{
+    return Qt::ItemIsEditable | Qt::ItemIsEnabled | Qt::ItemIsSelectable;
+}
+
+void TableInventoryRecommendation::importCsvRecommendation(
+    const QString &filePath)
+{
+    if (m_listOfVariantList.size() > 0)
+    {
+        beginRemoveRows(QModelIndex{}, 0, m_listOfVariantList.size()-1);
+        m_listOfVariantList.clear();
+        endRemoveRows();
+    }
+    CsvReader csvReader{filePath, ",", "\""};
+    if (csvReader.readAll())
+    {
+        auto dataRode = csvReader.dataRode();
+        int posMerchantSKU = dataRode->header.pos("Merchant SKU");
+        int posProductName = dataRode->header.pos("Product Name");
+        int posMerchantFNSKU = dataRode->header.pos("FNSKU");
+        int posProductASIN = dataRode->header.pos("ASIN");
+        int posSoldLast30days = dataRode->header.pos("Units Sold Last 30 Days");
+        int posUnitsTotal = dataRode->header.pos("Total Units");
+        //int posUnitsInbound = dataRode->header.pos("Inbound");
+        int posUnitsAvailable = dataRode->header.pos("Available");
+        int posTotalDays = dataRode->header.pos("Total Days of Supply (including units from open shipments)");
+        int posRecoUnits = dataRode->header.pos("Recommended replenishment qty");
+        int posRecoShipDate = dataRode->header.pos("Recommended ship date");
+        int posPrice = dataRode->header.pos("Price");
+        int nRows = 0;
+        QList<QVariantList> listOfVariantList;
+        for (const auto &elements : dataRode->lines)
+        {
+            const QString &sku = elements[posMerchantSKU];
+            const QString &title = elements[posProductName];
+            const QString &FNSKU = elements[posMerchantFNSKU];
+            const QString &ASIN = elements[posProductASIN];
+            int soldLast30days = elements[posSoldLast30days].toInt();
+            int unitsTotal = elements[posUnitsTotal].toInt();
+            //int unitsInbound = elements[posUnitsInbound].toInt();
+            int unitsAvailable = elements[posUnitsAvailable].toInt();
+            int totalDays = elements[posTotalDays].toInt();
+            int recoUnits = elements[posRecoUnits].toInt();
+            const auto &recoShipDate = QDate::fromString(
+                elements[posRecoShipDate], "MM/dd/yyyy");
+            double price = elements[posPrice].toDouble();
+            int correctedReco = recoUnits;
+            int daysToShip = QDate::currentDate().daysTo(recoShipDate);
+            if (correctedReco > 1)
+            {
+                if (unitsAvailable == 0)
+                {
+                    correctedReco *= 1.3 + 1;
+                }
+                else if (daysToShip > 120)
+                {
+                    correctedReco *= 0.8;
+                }
+            }
+            if (correctedReco == 0)
+            {
+                if (unitsTotal == 0 && soldLast30days > 0)
+                {
+                    correctedReco = 2;
+                }
+            }
+            if (correctedReco > 0)
+            {
+                listOfVariantList << QVariantList{
+                    sku
+                    , title
+                    , soldLast30days
+                    , unitsAvailable
+                    , totalDays
+                    , correctedReco
+                    , price
+                    , FNSKU
+                    , ASIN
+                };
+                ++nRows;
+            }
+        }
+        beginInsertRows(QModelIndex{}, 0, listOfVariantList.size() - 1);
+        m_listOfVariantList = std::move(listOfVariantList);
+        endInsertRows();
+    }
+
+    QFile file{filePath};
+    if (file.open(QFile::ReadOnly))
+    {
+        QTextStream stream{&file};
+        file.close();
     }
 }
 

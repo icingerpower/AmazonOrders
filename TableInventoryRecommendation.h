@@ -38,6 +38,9 @@ public:
 
     void save(const QString &countryCode);
     void load(const QString &countryCode);
+    Qt::ItemFlags flags(const QModelIndex &index) const override;
+
+    void importCsvRecommendation(const QString &filePath);
 
 public slots:
     int pasteText(const QString &text);

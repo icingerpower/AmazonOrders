@@ -28,6 +28,7 @@ message("Qt found in path: ${Qt_DIR_HINT}")
 find_package(QXlsxQt6 REQUIRED HINTS "${Qt_DIR_HINT}/../../../../lib/cmake/QXlsxQt6")
 
 include(../common/workingdirectory/workingdirectory.cmake)
+include(../common/utils/utils.cmake)
 
 set(PROJECT_SOURCES
         main.cpp
@@ -51,6 +52,7 @@ set(PROJECT_SOURCES
         OrderCreator.cpp
         "../common/types/types.h"
         "../common/types/types.cpp"
+        ${UTILS_FILES}
         ${WORKING_DIR_FILES}
 )
 

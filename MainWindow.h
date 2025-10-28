@@ -22,6 +22,7 @@ public slots:
     void browseImagePath();
     void addOrderFile();
     void removeOrderFile();
+    void importInventoryRecommendation();
     void pasteInventoryRecommendation();
     void clearInventoryRecommendation();
     void clearInventoryNotRecommended();
