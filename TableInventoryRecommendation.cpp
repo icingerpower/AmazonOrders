@@ -239,6 +239,8 @@ int TableInventoryRecommendation::pasteText(const QString &text)
             lines.removeAt(i);
         }
     }
+    QString FNSKUmark{"X00"};
+    /*
     QString supplierMark{"--"};
     int indexDashDash = lines.indexOf(supplierMark);
     if (indexDashDash == -1 || !lines[indexDashDash-1].startsWith("X"))
@@ -246,24 +248,38 @@ int TableInventoryRecommendation::pasteText(const QString &text)
         supplierMark = "unassigned";
         indexDashDash = lines.indexOf(supplierMark);
     }
-    while (indexDashDash != -1)
+    //*/
+    auto getIndexOfFNSKU = [](const QStringList &lines, int curIndex, const QString &mark) -> int
     {
-        int indexSku = indexDashDash - 4;
-        int indexTitle = indexDashDash - 3;
-        int indexASIN = indexDashDash - 2;
-        int indexFNSKU = indexDashDash - 1;
-        int indexSoldLast30days = indexDashDash + 2;
+        for (int i=curIndex; i<lines.size(); ++i)
+        {
+            if (lines[i].startsWith(mark))
+            {
+                return i;
+            }
+        }
+        return -1;
+    };
+    int indexFNSKU = getIndexOfFNSKU(lines, 0, FNSKUmark);
+    while (indexFNSKU != -1)
+    {
+        int indexSku = indexFNSKU - 3;
+        int indexTitle = indexFNSKU - 2;
+        int indexASIN = indexFNSKU - 1;
+        //int indexFNSKU = indexDashDash - 1;
+        int indexSoldLast30days = indexFNSKU + 3;
         int addExtraViewForecast = lines.contains("View forecast", Qt::CaseInsensitive) ? 1:0;
-        int indexSalePrice = indexDashDash + 3 + addExtraViewForecast;
-        int indexInvLeftDays = indexDashDash + 4 + addExtraViewForecast;
-        int indexInvLeft = indexDashDash + 5 + addExtraViewForecast;
-        int indexInvRecommendation = indexDashDash + 6 + addExtraViewForecast;
+        int indexSalePrice = indexFNSKU + 4 + addExtraViewForecast;
+        int indexInvLeftDays = indexFNSKU + 5 + addExtraViewForecast;
+        int indexInvLeft = indexFNSKU + 6 + addExtraViewForecast;
+        int indexInvRecommendation = indexFNSKU + 7 + addExtraViewForecast;
         if (lines[indexInvRecommendation].contains("stock", Qt::CaseInsensitive))
         {
             ++indexInvRecommendation;
         }
         if (indexSku >= 0 && indexInvLeft < lines.size())
         {
+            const auto &line = lines[indexSku];
             const QString &sku = lines[indexSku];
             const QString &title = lines[indexTitle];
             const QString &ASIN = lines[indexASIN];
@@ -309,8 +325,9 @@ int TableInventoryRecommendation::pasteText(const QString &text)
             Q_ASSERT(false);
             // TODO raise Exception
         }
-        lines.remove(indexDashDash);
-        indexDashDash = lines.indexOf(supplierMark);
+        lines.remove(indexFNSKU);
+        indexFNSKU = getIndexOfFNSKU(lines, indexFNSKU, FNSKUmark);
+        //indexDashDash = lines.indexOf(supplierMark);
     }
     if (m_listOfVariantList.size() > rowBefore)
     {
