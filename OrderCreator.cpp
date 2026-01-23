@@ -324,6 +324,10 @@ QString OrderCreator::_getCjSkuParent(
 {
     if (sku.contains("CJ"))
     {
+        if (sku.endsWith("-02") && sku.startsWith("CJ"))
+        {
+            return _getCjSkuParent(sku.left(sku.size()-3));
+        }
         if (sku.contains("-"))
         {
             QStringList elements{sku.trimmed().split("-")};
