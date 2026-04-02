@@ -82,6 +82,11 @@ endif()
 
 target_link_libraries(AmazonOrders PRIVATE Qt${QT_VERSION_MAJOR}::Widgets QXlsx::QXlsx)
 
+# Compatibility stub: newer QXlsx versions reference xlsxreadsax.h in
+# xlsxdocument.h but some builds don't install it. The compat/ directory
+# provides the missing header without touching system files.
+target_include_directories(AmazonOrders PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/compat)
+
 set_target_properties(AmazonOrders PROPERTIES
     MACOSX_BUNDLE_GUI_IDENTIFIER my.example.com
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
