@@ -19,17 +19,18 @@ OrderCreator::OrderCreator(const QStringList &xlsxFilePathsFrom,
     for (auto it = skusNoInv_customReco.begin();
          it != skusNoInv_customReco.end(); ++it)
     {
-        if (it.key().trimmed().isEmpty())
+        const auto &key = it.key().trimmed();
+        if (key.isEmpty())
         {
-            Q_ASSERT(!it.key().trimmed().isEmpty());
+            Q_ASSERT(false);
         }
-        if (!m_mergeSku_quantity.contains(it.key()))
+        if (!m_mergeSku_quantity.contains(key))
         {
-            m_mergeSku_quantity[it.key()] = it.value();
+            m_mergeSku_quantity[key] = it.value();
         }
         else
         {
-            m_mergeSku_quantity[it.key()] = qMax(m_mergeSku_quantity[it.key()], it.value());
+            m_mergeSku_quantity[key] = qMax(m_mergeSku_quantity[it.key()], it.value());
         }
     }
 
@@ -314,7 +315,7 @@ QString OrderCreator::_getSku(
 {
     if (auto cell = document.cellAt(row + 1, col + 1))
     {
-        return cell->value().toString();
+        return cell->value().toString().trimmed();
     }
     return 0;
 }
@@ -443,7 +444,7 @@ QStringList OrderCreator::_getSkusInYellow(
             const QString &sku = rowValues->value(COL_SKU).value.toString();
             if (!sku.isEmpty())
             {
-                skus << sku;
+                skus << sku.trimmed();
             }
         }
     }

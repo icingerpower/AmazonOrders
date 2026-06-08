@@ -95,7 +95,7 @@ QMap<QString, int> TableInventoryRecommendation::get_skusNoInv_customReco() cons
             if (quantityLeft == 0 || quantityLeftDays < 45)
             {
                 const auto &sku = variantList[IND_SKU].toString();
-                skusNoInv_quantitySold[sku] = qMax(quantitySold30days, 1);
+                skusNoInv_quantitySold[sku.trimmed()] = qMax(quantitySold30days, 1);
             }
         }
     }
@@ -111,7 +111,7 @@ QMap<QString, int> TableInventoryRecommendation::get_skusReco_quantity() const
         if (quantity > 0)
         {
             const auto &sku = variantList[IND_SKU].toString();
-            skusReco_quantity[sku] = quantity;
+            skusReco_quantity[sku.trimmed()] = quantity;
         }
     }
     return skusReco_quantity;
@@ -423,10 +423,10 @@ void TableInventoryRecommendation::importCsvRecommendation(
         QList<QVariantList> listOfVariantList;
         for (const auto &elements : dataRode->lines)
         {
-            const QString &sku = elements[posMerchantSKU];
+            const QString &sku = elements[posMerchantSKU].trimmed();
             const QString &title = elements[posProductName];
-            const QString &FNSKU = elements[posMerchantFNSKU];
-            const QString &ASIN = elements[posProductASIN];
+            const QString &FNSKU = elements[posMerchantFNSKU].trimmed();
+            const QString &ASIN = elements[posProductASIN].trimmed();
             int soldLast30days = elements[posSoldLast30days].toInt();
             int unitsTotal = elements[posUnitsTotal].toInt();
             //int unitsInbound = elements[posUnitsInbound].toInt();
