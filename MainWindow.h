@@ -32,6 +32,8 @@ public slots:
     void filterReset();
     void saveRecommendation();
     void loadRecommendation();
+    void browseSourcingCostFile();
+    void genSourcingCost();
 
 private slots:
     void _onCountryChanged(const QString &countryCode);
@@ -39,6 +41,8 @@ private slots:
 private:
     Ui::MainWindow *ui;
     void _connectSlots();
+    void _fillSourcingCost(const QString &filePath);
     QString m_settingKeyImagePath;
+    QString m_settingKeySourcingCostFile;
 };
 #endif // MAINWINDOW_H

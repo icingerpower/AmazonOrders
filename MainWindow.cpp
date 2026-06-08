@@ -3,6 +3,10 @@
 #include <QClipboard>
 #include <QApplication>
 #include <QSettings>
+#include <QFile>
+#include <algorithm>
+
+#include <xlsxdocument.h>
 
 #include "../common/workingdirectory/WorkingDirectoryManager.h"
 
@@ -21,6 +25,7 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
     m_settingKeyImagePath = "imagePath";
+    m_settingKeySourcingCostFile = "sourcingCostFile";
     const auto &countryCode = ui->comboCountry->currentText();
     ListOrderModel *listOrderModel = new ListOrderModel{countryCode, ui->listViewOrderFiles};
     ui->listViewOrderFiles->setModel(listOrderModel);
@@ -30,6 +35,8 @@ MainWindow::MainWindow(QWidget *parent)
     auto settings = WorkingDirectoryManager::instance()->settings();
     ui->lineEditPathImage->setText(
         settings->value(m_settingKeyImagePath, QString{}).toString());
+    ui->lineEditSourcingCostFile->setText(
+        settings->value(m_settingKeySourcingCostFile, QString{}).toString());
     _connectSlots();
 }
 
@@ -91,6 +98,14 @@ void MainWindow::_connectSlots()
             &QPushButton::clicked,
             this,
             &MainWindow::loadRecommendation);
+    connect(ui->buttonBrowseSourcingCost,
+            &QPushButton::clicked,
+            this,
+            &MainWindow::browseSourcingCostFile);
+    connect(ui->buttonGenSourcingCost,
+            &QPushButton::clicked,
+            this,
+            &MainWindow::genSourcingCost);
 }
 
 MainWindow::~MainWindow()
@@ -324,4 +339,134 @@ void MainWindow::loadRecommendation()
         ui->comboCountry->currentText());
 }
 
+void MainWindow::browseSourcingCostFile()
+{
+    auto settings = WorkingDirectoryManager::instance()->settings();
+    const QString &currentPath = settings->value(m_settingKeySourcingCostFile, QString{}).toString();
+    const QString &startDir = currentPath.isEmpty()
+        ? QDir{}.path()
+        : QFileInfo{currentPath}.dir().path();
+    const QString &filePath = QFileDialog::getOpenFileName(
+        this,
+        tr("Sourcing cost file"),
+        startDir,
+        QString{"Xlsx (*.xlsx *.XLSX)"}
+    );
+    if (!filePath.isEmpty())
+    {
+        settings->setValue(m_settingKeySourcingCostFile, filePath);
+        ui->lineEditSourcingCostFile->setText(filePath);
+    }
+}
+
+void MainWindow::genSourcingCost()
+{
+    const QString &sourcePath = ui->lineEditSourcingCostFile->text();
+    if (sourcePath.isEmpty())
+    {
+        QMessageBox::warning(this, tr("No file"), tr("Please select a sourcing cost file first."));
+        return;
+    }
+    QFileInfo fi{sourcePath};
+    const QString outputPath = fi.dir().filePath(fi.baseName() + "-FILLED." + fi.suffix());
+    if (QFile::exists(outputPath))
+        QFile::remove(outputPath);
+    if (!QFile::copy(sourcePath, outputPath))
+    {
+        QMessageBox::warning(this, tr("Copy failed"), tr("Could not create output file:\n") + outputPath);
+        return;
+    }
+    _fillSourcingCost(outputPath);
+}
+
+void MainWindow::_fillSourcingCost(const QString &filePath)
+{
+    // Helper: find 1-based column index matching header name (exact, case-insensitive)
+    auto findCol = [](const QXlsx::Document &doc, const QString &name) -> int {
+        auto dim = doc.dimension();
+        for (int col = dim.firstColumn(); col <= dim.lastColumn(); ++col)
+        {
+            QVariant v = doc.read(dim.firstRow(), col);
+            if (!v.isNull() && v.toString().trimmed().toLower() == name)
+                return col;
+        }
+        return -1;
+    };
+
+    // --- Step 1: scan order files most-recent to oldest, collect price + weight per SKU ---
+    struct SkuInfo { double price; double weightGrams; };
+    QHash<QString, SkuInfo> skuInfo;
+    QHash<QString, QString> fnsku_sku; // FNSKU -> SKU for fallback matching in sourcing file
+
+    QStringList orderPaths = getListOrderModel()->getFilePaths();
+    std::sort(orderPaths.begin(), orderPaths.end(), std::greater<QString>());
+
+    for (const QString &orderPath : orderPaths)
+    {
+        QXlsx::Document orderDoc{orderPath};
+        auto dim = orderDoc.dimension();
+        if (dim.firstRow() < 0) continue;
+
+        int cSku    = findCol(orderDoc, "sku");
+        int cFnsku  = findCol(orderDoc, "fnsku");
+        int cWeight = findCol(orderDoc, "unit weight");
+        int cPrice  = findCol(orderDoc, "unit price");
+        if (cSku < 0 || cPrice < 0 || cWeight < 0) continue;
+
+        for (int row = dim.firstRow() + 1; row <= dim.lastRow(); ++row)
+        {
+            const QString sku = orderDoc.read(row, cSku).toString().trimmed();
+            if (sku.isEmpty() || skuInfo.contains(sku)) continue; // most-recent wins
+
+            bool priceOk, weightOk;
+            double price  = orderDoc.read(row, cPrice).toDouble(&priceOk);
+            double weight = orderDoc.read(row, cWeight).toDouble(&weightOk);
+            if (!priceOk || price <= 0 || !weightOk || weight < 0) continue;
+
+            skuInfo[sku] = {price, weight};
+            if (cFnsku >= 0)
+            {
+                const QString fnsku = orderDoc.read(row, cFnsku).toString().trimmed();
+                if (!fnsku.isEmpty())
+                    fnsku_sku[fnsku] = sku;
+            }
+        }
+    }
+
+    // --- Step 2: fill "Seller New Cost" in the copied sourcing xlsx ---
+    QXlsx::Document doc{filePath};
+    auto dim = doc.dimension();
+    if (dim.firstRow() < 0) { doc.save(); return; }
+
+    int cSku         = findCol(doc, "sku");
+    int cFnsku       = findCol(doc, "fnsku");
+    int cAmazonPrice = findCol(doc, "amazon estimated cost");
+    int cSellerCost  = findCol(doc, "seller new cost");
+    if (cSellerCost < 0) { doc.save(); return; }
+
+    for (int row = dim.firstRow() + 1; row <= dim.lastRow(); ++row)
+    {
+        // Resolve SKU: try direct column first, fall back to FNSKU reverse-lookup
+        QString sku;
+        if (cSku >= 0)
+            sku = doc.read(row, cSku).toString().trimmed();
+        if (sku.isEmpty() && cFnsku >= 0)
+            sku = fnsku_sku.value(doc.read(row, cFnsku).toString().trimmed());
+        if (sku.isEmpty() || !skuInfo.contains(sku)) continue;
+
+        const SkuInfo &info = skuInfo[sku];
+        double newPrice = info.price + (info.weightGrams / 1000.0) * 5.0;
+
+        if (cAmazonPrice >= 0)
+        {
+            bool ok;
+            double amazonPrice = doc.read(row, cAmazonPrice).toDouble(&ok);
+            if (ok && newPrice <= amazonPrice) continue;
+        }
+
+        doc.write(row, cSellerCost, newPrice);
+    }
+
+    doc.save();
+}
 
