@@ -26,6 +26,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->setupUi(this);
     m_settingKeyImagePath = "imagePath";
     m_settingKeySourcingCostFile = "sourcingCostFile";
+    m_settingKeyPricePerKilo = "pricePerKilo";
     const auto &countryCode = ui->comboCountry->currentText();
     ListOrderModel *listOrderModel = new ListOrderModel{countryCode, ui->listViewOrderFiles};
     ui->listViewOrderFiles->setModel(listOrderModel);
@@ -37,6 +38,8 @@ MainWindow::MainWindow(QWidget *parent)
         settings->value(m_settingKeyImagePath, QString{}).toString());
     ui->lineEditSourcingCostFile->setText(
         settings->value(m_settingKeySourcingCostFile, QString{}).toString());
+    ui->spinBoxPricePerKilo->setValue(
+        settings->value(m_settingKeyPricePerKilo, 5.0).toDouble());
     _connectSlots();
 }
 
@@ -106,6 +109,13 @@ void MainWindow::_connectSlots()
             &QPushButton::clicked,
             this,
             &MainWindow::genSourcingCost);
+    connect(ui->spinBoxPricePerKilo,
+            &QDoubleSpinBox::valueChanged,
+            this,
+            [this](double value) {
+                WorkingDirectoryManager::instance()->settings()->setValue(
+                    m_settingKeyPricePerKilo, value);
+            });
 }
 
 MainWindow::~MainWindow()
@@ -394,7 +404,7 @@ void MainWindow::_fillSourcingCost(const QString &filePath)
     };
 
     // --- Step 1: scan order files most-recent to oldest, collect price + weight per SKU ---
-    struct SkuInfo { double price; double weightGrams; };
+    struct SkuInfo { double price; double weightGrams; QString sourceFile; };
     QHash<QString, SkuInfo> skuInfo;
     QHash<QString, QString> fnsku_sku; // FNSKU -> SKU for fallback matching in sourcing file
 
@@ -413,6 +423,8 @@ void MainWindow::_fillSourcingCost(const QString &filePath)
         int cPrice  = findCol(orderDoc, "unit price");
         if (cSku < 0 || cPrice < 0 || cWeight < 0) continue;
 
+        const QString orderFileName = QFileInfo(orderPath).fileName();
+
         for (int row = dim.firstRow() + 1; row <= dim.lastRow(); ++row)
         {
             const QString sku = orderDoc.read(row, cSku).toString().trimmed();
@@ -423,7 +435,7 @@ void MainWindow::_fillSourcingCost(const QString &filePath)
             double weight = orderDoc.read(row, cWeight).toDouble(&weightOk);
             if (!priceOk || price <= 0 || !weightOk || weight < 0) continue;
 
-            skuInfo[sku] = {price, weight};
+            skuInfo[sku] = {price, weight, orderFileName};
             if (cFnsku >= 0)
             {
                 const QString fnsku = orderDoc.read(row, cFnsku).toString().trimmed();
@@ -444,6 +456,13 @@ void MainWindow::_fillSourcingCost(const QString &filePath)
     int cSellerCost  = findCol(doc, "seller new cost");
     if (cSellerCost < 0) { doc.save(); return; }
 
+    struct FilledRow { int row; QString sourceFile; };
+    QVector<FilledRow> filledRows;
+
+    int totalWithAmazon = 0;
+    int amazonHigherOrEqualCount = 0;
+    double ratioSum = 0.0;
+
     for (int row = dim.firstRow() + 1; row <= dim.lastRow(); ++row)
     {
         // Resolve SKU: try direct column first, fall back to FNSKU reverse-lookup
@@ -455,18 +474,62 @@ void MainWindow::_fillSourcingCost(const QString &filePath)
         if (sku.isEmpty() || !skuInfo.contains(sku)) continue;
 
         const SkuInfo &info = skuInfo[sku];
-        double newPrice = info.price + (info.weightGrams / 1000.0) * 5.0;
+        const double pricePerKilo = ui->spinBoxPricePerKilo->value();
+        double newPrice = info.price + (info.weightGrams / 1000.0) * pricePerKilo;
 
         if (cAmazonPrice >= 0)
         {
             bool ok;
             double amazonPrice = doc.read(row, cAmazonPrice).toDouble(&ok);
-            if (ok && newPrice <= amazonPrice) continue;
+            if (ok)
+            {
+                totalWithAmazon++;
+                ratioSum += (amazonPrice / newPrice) * 100.0;
+                if (newPrice <= amazonPrice)
+                {
+                    amazonHigherOrEqualCount++;
+                    continue;
+                }
+            }
         }
 
         doc.write(row, cSellerCost, newPrice);
+        filledRows.append({row, info.sourceFile});
     }
 
     doc.save();
+
+    // --- Step 3: create -WITH-FILE variant with an extra "Source File" column ---
+    QFileInfo fi{filePath};
+    const QString withFilePath = fi.dir().filePath(fi.baseName() + "-WITH-FILE." + fi.suffix());
+    if (QFile::exists(withFilePath))
+        QFile::remove(withFilePath);
+
+    const int cSourceFile = dim.lastColumn() + 1;
+    doc.write(dim.firstRow(), cSourceFile, QString("Source File"));
+    for (const FilledRow &fr : filledRows)
+        doc.write(fr.row, cSourceFile, fr.sourceFile);
+
+    doc.saveAs(withFilePath);
+
+    // --- Step 4: show statistics ---
+    QString statsMsg;
+    if (totalWithAmazon > 0)
+    {
+        double pctHigher = 100.0 * amazonHigherOrEqualCount / totalWithAmazon;
+        double avgRatio  = ratioSum / totalWithAmazon;
+        statsMsg = tr("Rows with Amazon price data: %1\n"
+                      "Amazon price ≥ invoice (skipped): %2 (%3%)\n"
+                      "Avg Amazon / invoice ratio: %4%")
+                   .arg(totalWithAmazon)
+                   .arg(amazonHigherOrEqualCount)
+                   .arg(pctHigher, 0, 'f', 1)
+                   .arg(avgRatio, 0, 'f', 1);
+    }
+    else
+    {
+        statsMsg = tr("No rows with Amazon price data found.");
+    }
+    QMessageBox::information(this, tr("Sourcing Cost Statistics"), statsMsg);
 }
 

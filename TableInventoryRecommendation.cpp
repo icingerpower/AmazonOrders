@@ -407,18 +407,18 @@ void TableInventoryRecommendation::importCsvRecommendation(
     if (csvReader.readAll())
     {
         auto dataRode = csvReader.dataRode();
-        int posMerchantSKU = dataRode->header.pos("Merchant SKU");
-        int posProductName = dataRode->header.pos("Product Name");
-        int posMerchantFNSKU = dataRode->header.pos("FNSKU");
-        int posProductASIN = dataRode->header.pos("ASIN");
-        int posSoldLast30days = dataRode->header.pos("Units Sold Last 30 Days");
-        int posUnitsTotal = dataRode->header.pos("Total Units");
+        int posMerchantSKU = dataRode->header.pos({"sku", "Merchant SKU"});
+        int posProductName = dataRode->header.pos({"product-name", "Product Name"});
+        int posMerchantFNSKU = dataRode->header.pos({"fnsku", "FNSKU"});
+        int posProductASIN = dataRode->header.pos({"asin", "ASIN"});
+        int posSoldLast30days = dataRode->header.pos({"units-shipped-t30", "Units Sold Last 30 Days"});
+        int posUnitsTotal = dataRode->header.pos({"Inventory Supply at FBA", "Total Units"});
         //int posUnitsInbound = dataRode->header.pos("Inbound");
-        int posUnitsAvailable = dataRode->header.pos("Available");
+        int posUnitsAvailable = dataRode->header.pos({"available", "Available"});
         int posTotalDays = dataRode->header.pos("Total Days of Supply (including units from open shipments)");
-        int posRecoUnits = dataRode->header.pos("Recommended replenishment qty");
-        int posRecoShipDate = dataRode->header.pos("Recommended ship date");
-        int posPrice = dataRode->header.pos("Price");
+        int posRecoUnits = dataRode->header.pos({"Recommended ship-in quantity", "Recommended replenishment qty"});
+        int posRecoShipDate = dataRode->header.pos({"Recommended ship-in date", "Recommended ship date"});
+        int posPrice = dataRode->header.pos({"your-price", "Price"});
         int nRows = 0;
         QList<QVariantList> listOfVariantList;
         for (const auto &elements : dataRode->lines)
@@ -433,8 +433,13 @@ void TableInventoryRecommendation::importCsvRecommendation(
             int unitsAvailable = elements[posUnitsAvailable].toInt();
             int totalDays = elements[posTotalDays].toInt();
             int recoUnits = elements[posRecoUnits].toInt();
-            const auto &recoShipDate = QDate::fromString(
+            QDate recoShipDate = QDate::fromString(
                 elements[posRecoShipDate], "MM/dd/yyyy");
+            if (!recoShipDate.isValid())
+            {
+                recoShipDate = QDate::fromString(
+                    elements[posRecoShipDate], "yyyy-MM-dd");
+            }
             double price = elements[posPrice].toDouble();
             int correctedReco = recoUnits;
             int daysToShip = QDate::currentDate().daysTo(recoShipDate);
@@ -442,11 +447,11 @@ void TableInventoryRecommendation::importCsvRecommendation(
             {
                 if (unitsAvailable == 0)
                 {
-                    correctedReco *= 1.3 + 1;
+                    correctedReco += + 1;
                 }
                 else if (daysToShip > 120)
                 {
-                    correctedReco *= 0.8;
+                    correctedReco *= 0.7;
                 }
             }
             if (correctedReco == 0)

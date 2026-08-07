@@ -44,5 +44,6 @@ private:
     void _fillSourcingCost(const QString &filePath);
     QString m_settingKeyImagePath;
     QString m_settingKeySourcingCostFile;
+    QString m_settingKeyPricePerKilo;
 };
 #endif // MAINWINDOW_H
